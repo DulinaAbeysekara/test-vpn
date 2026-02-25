@@ -1,6 +1,2 @@
-readme
-
-# me y4z
-
-
-Hi mn THUSHAN
+Team
+1. Yaz
