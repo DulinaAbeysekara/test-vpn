@@ -2,8 +2,8 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 
 pub fn server_main() -> std::io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:7856")?;
-    println!("Server listening on 7856.......");
+    let listener = TcpListener::bind("127.0.0.1:7878")?;
+    println!("Server listening on 7878.......");
 
     for stream in listener.incoming() {
         let mut stream = stream?;

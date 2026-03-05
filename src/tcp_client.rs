@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 pub fn client_main() -> std::io::Result<()> {
-    let mut stream = TcpStream::connect("127.0.0.1:7856")?;
+    let mut stream = TcpStream::connect("127.0.0.1:7878")?;
     println!("connect to server");
 
     stream.write_all(b"hello from me")?;
