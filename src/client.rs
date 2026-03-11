@@ -1,3 +1,6 @@
+//! Client-side tunnel implementation.
+//!
+
 use crate::TunParams;
 use std::io;
 use std::net::IpAddr;
@@ -12,6 +15,8 @@ pub struct ClientArgs {
     pub verbose: bool,
 }
 
+/// Runs the client tunnel loops.
+
 pub fn run(args: ClientArgs) -> io::Result<()> {
     let dev = Arc::new(crate::create_tun(&args.tun)?);
 
@@ -20,12 +25,12 @@ pub fn run(args: ClientArgs) -> io::Result<()> {
     udp.set_read_timeout(Some(std::time::Duration::from_millis(500)))?;
 
     println!("Client up");
-    println!("  TUN: {} {}/{}", args.tun.name, args.tun.address_v4, args.tun.prefix_v4);
+    println!(
+        "  TUN: {} {}/{}",
+        args.tun.name, args.tun.address_v4, args.tun.prefix_v4
+    );
     println!("  UDP: {} -> {}", udp.local_addr()?, args.server);
 
-    // Automatically install split-default routes so traffic enters the tunnel.
-    // On Linux, we also pin a host route to the UDP server first, so the tunnel transport
-    // doesn't get routed into itself.
     setup_routes(&args.tun, args.server, args.verbose)?;
 
     let dev_tx = Arc::clone(&dev);
@@ -57,19 +62,27 @@ pub fn run(args: ClientArgs) -> io::Result<()> {
                     );
                     dev_rx.send(&buf[..n])?;
                 }
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut => {}
+                Err(e)
+                    if e.kind() == io::ErrorKind::WouldBlock
+                        || e.kind() == io::ErrorKind::TimedOut => {}
                 Err(e) => return Err(e),
             }
         }
     });
 
     // If either thread exits with an error, propagate it.
-    tun_to_udp
-        .join()
-        .unwrap_or_else(|_| Err(io::Error::new(io::ErrorKind::Other, "tun->udp thread panicked")))?;
-    udp_to_tun
-        .join()
-        .unwrap_or_else(|_| Err(io::Error::new(io::ErrorKind::Other, "udp->tun thread panicked")))?;
+    tun_to_udp.join().unwrap_or_else(|_| {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "tun->udp thread panicked",
+        ))
+    })?;
+    udp_to_tun.join().unwrap_or_else(|_| {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "udp->tun thread panicked",
+        ))
+    })?;
 
     Ok(())
 }
@@ -83,10 +96,17 @@ fn setup_routes(tun: &TunParams, server: SocketAddr, verbose: bool) -> io::Resul
 
 #[cfg(target_os = "linux")]
 fn setup_routes_v4(tun: &TunParams, server_ip: &str, verbose: bool) -> io::Result<()> {
-    // Bring up TUN interface.
-    run_cmd("ip", &["link", "set", "dev", tun.name.as_str(), "up"], verbose)?;
+    // Bring the interface up (it may start down on some systems).
+    run_cmd(
+        "ip",
+        &["link", "set", "dev", tun.name.as_str(), "up"],
+        verbose,
+    )?;
 
-    // Pin server host route via the current (pre-tunnel) routing decision.
+    // Pin a /32 route to the UDP server *before* installing split-default routes.
+    //
+    // Without this, once default routes point into the tunnel, the UDP transport to the server
+    // can accidentally route into the tunnel itself (which deadlocks the tunnel).
     if let Some((dev, via)) = linux_route_get(server_ip, verbose)? {
         if let Some(via) = via {
             run_cmd(
@@ -125,13 +145,7 @@ fn setup_routes_v4(tun: &TunParams, server_ip: &str, verbose: bool) -> io::Resul
     )?;
     run_cmd(
         "ip",
-        &[
-            "route",
-            "replace",
-            "128.0.0.0/1",
-            "dev",
-            tun.name.as_str(),
-        ],
+        &["route", "replace", "128.0.0.0/1", "dev", tun.name.as_str()],
         verbose,
     )?;
 
@@ -140,13 +154,14 @@ fn setup_routes_v4(tun: &TunParams, server_ip: &str, verbose: bool) -> io::Resul
 
 #[cfg(windows)]
 fn setup_routes_v4(tun: &TunParams, _server_ip: &str, verbose: bool) -> io::Result<()> {
-    // Best-effort: add split default routes via the TUN gateway (assumed to be .1 in the subnet).
-    // Requires Administrator privileges.
-    let gateway = derive_gateway_v4(&tun.address_v4, tun.prefix_v4)
-        .unwrap_or_else(|| "10.0.0.1".to_string());
+    let gateway =
+        derive_gateway_v4(&tun.address_v4, tun.prefix_v4).unwrap_or_else(|| "10.0.0.1".to_string());
 
     let if_index = powershell_capture(
-        &format!("(Get-NetAdapter -Name '{}').ifIndex", tun.name.replace('\'', "''")),
+        &format!(
+            "(Get-NetAdapter -Name '{}').ifIndex",
+            tun.name.replace('\'', "''")
+        ),
         verbose,
     )?
     .trim()
@@ -158,7 +173,15 @@ fn setup_routes_v4(tun: &TunParams, _server_ip: &str, verbose: bool) -> io::Resu
 
     run_cmd(
         "route",
-        &["ADD", "0.0.0.0", "MASK", "128.0.0.0", &gateway, "IF", &if_index],
+        &[
+            "ADD",
+            "0.0.0.0",
+            "MASK",
+            "128.0.0.0",
+            &gateway,
+            "IF",
+            &if_index,
+        ],
         verbose,
     )?;
     run_cmd(
@@ -198,6 +221,7 @@ fn linux_route_get(ip: &str, verbose: bool) -> io::Result<Option<(String, Option
     if verbose {
         eprintln!("[client] exec: ip route get {}", ip);
     }
+    // Parse `ip route get` output to discover the current outbound interface and gateway.
     let out = Command::new("ip").args(["route", "get", ip]).output()?;
     if !out.status.success() {
         return Ok(None);
@@ -241,9 +265,12 @@ fn powershell_capture(command: &str, verbose: bool) -> io::Result<String> {
 #[cfg(windows)]
 fn derive_gateway_v4(addr: &str, prefix: u8) -> Option<String> {
     let ip: std::net::Ipv4Addr = addr.parse().ok()?;
-    let mask: u32 = if prefix == 0 { 0 } else { (!0u32) << (32 - prefix) };
+    let mask: u32 = if prefix == 0 {
+        0
+    } else {
+        (!0u32) << (32 - prefix)
+    };
     let net = u32::from(ip) & mask;
     let gw = std::net::Ipv4Addr::from(net.wrapping_add(1));
     Some(gw.to_string())
 }
-

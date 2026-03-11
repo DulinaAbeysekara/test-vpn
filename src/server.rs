@@ -1,3 +1,5 @@
+//! Server-side tunnel implementation (Linux-only).
+
 use crate::TunParams;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
@@ -46,7 +48,10 @@ pub fn run(args: ServerArgs) -> io::Result<()> {
     let client_addr: Arc<Mutex<Option<SocketAddr>>> = Arc::new(Mutex::new(None));
 
     println!("Server up (Linux)");
-    println!("  TUN: {} {}/{}", args.tun.name, args.tun.address_v4, args.tun.prefix_v4);
+    println!(
+        "  TUN: {} {}/{}",
+        args.tun.name, args.tun.address_v4, args.tun.prefix_v4
+    );
     println!("  UDP listen: {}", udp.local_addr()?);
     if args.setup_nat {
         println!("  NAT/forwarding: configured automatically (--setup-nat)");
@@ -100,18 +105,26 @@ pub fn run(args: ServerArgs) -> io::Result<()> {
                     );
                     dev_rx.send(&buf[..n])?;
                 }
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock || e.kind() == io::ErrorKind::TimedOut => {}
+                Err(e)
+                    if e.kind() == io::ErrorKind::WouldBlock
+                        || e.kind() == io::ErrorKind::TimedOut => {}
                 Err(e) => return Err(e),
             }
         }
     });
 
-    tun_to_udp
-        .join()
-        .unwrap_or_else(|_| Err(io::Error::new(io::ErrorKind::Other, "tun->udp thread panicked")))?;
-    udp_to_tun
-        .join()
-        .unwrap_or_else(|_| Err(io::Error::new(io::ErrorKind::Other, "udp->tun thread panicked")))?;
+    tun_to_udp.join().unwrap_or_else(|_| {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "tun->udp thread panicked",
+        ))
+    })?;
+    udp_to_tun.join().unwrap_or_else(|_| {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "udp->tun thread panicked",
+        ))
+    })?;
 
     Ok(())
 }
@@ -129,16 +142,9 @@ fn setup_nat(tun_name: &str, tun_addr: &str, prefix: u8, wan_iface: &str) -> io:
     // Enable IPv4 forwarding.
     run_cmd("sysctl", &["-w", "net.ipv4.ip_forward=1"])?;
 
-    // Allow forwarding between TUN and WAN.
+    // Allow forwarding between TUN and WAN (idempotent: check first, then add).
     ensure_iptables_rule(&[
-        "-C",
-        "FORWARD",
-        "-i",
-        tun_name,
-        "-o",
-        wan_iface,
-        "-j",
-        "ACCEPT",
+        "-C", "FORWARD", "-i", tun_name, "-o", wan_iface, "-j", "ACCEPT",
     ])?;
     ensure_iptables_rule(&[
         "-C",
@@ -155,7 +161,7 @@ fn setup_nat(tun_name: &str, tun_addr: &str, prefix: u8, wan_iface: &str) -> io:
         "ACCEPT",
     ])?;
 
-    // NAT traffic leaving via WAN.
+    // NAT traffic leaving via WAN
     ensure_iptables_nat_rule(&[
         "-C",
         "POSTROUTING",
@@ -185,8 +191,6 @@ fn run_cmd(program: &str, args: &[&str]) -> io::Result<()> {
 
 #[cfg(target_os = "linux")]
 fn ensure_iptables_rule(check_args: &[&str]) -> io::Result<()> {
-    // check_args is a full `iptables` invocation starting at "-C ...".
-    // If check succeeds, rule exists; if it fails, add the same rule with "-A".
     let status = Command::new("iptables").args(check_args).status()?;
     if status.success() {
         return Ok(());
@@ -200,7 +204,6 @@ fn ensure_iptables_rule(check_args: &[&str]) -> io::Result<()> {
 
 #[cfg(target_os = "linux")]
 fn ensure_iptables_nat_rule(check_args: &[&str]) -> io::Result<()> {
-    // check_args is a full `iptables -t nat` invocation starting at "-C POSTROUTING ...".
     let status = Command::new("iptables")
         .args(["-t", "nat"])
         .args(check_args)
@@ -230,9 +233,12 @@ fn network_cidr(addr: &str, prefix: u8) -> io::Result<String> {
             format!("Invalid IPv4 address: {}", addr),
         )
     })?;
-    let mask: u32 = if prefix == 0 { 0 } else { (!0u32) << (32 - prefix) };
+    let mask: u32 = if prefix == 0 {
+        0
+    } else {
+        (!0u32) << (32 - prefix)
+    };
     let ip_u32 = u32::from(ip);
     let net = Ipv4Addr::from(ip_u32 & mask);
     Ok(net.to_string())
 }
-

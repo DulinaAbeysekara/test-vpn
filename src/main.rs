@@ -1,7 +1,12 @@
+//! Entry point + shared helpers.
+//!
+
 use clap::Parser;
-use std::io;
-use std::time::{SystemTime, UNIX_EPOCH};
 use etherparse::{NetSlice, SlicedPacket, TransportSlice};
+use std::{
+    io,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tun_rs::{DeviceBuilder, Layer, SyncDevice};
 
 mod client;
@@ -15,6 +20,9 @@ pub struct TunParams {
     pub mtu: Option<u16>,
 }
 
+/// Create a Layer-3 TUN interface and assign it an IPv4 address.
+/// - Linux: requires root or `CAP_NET_ADMIN`, and `/dev/net/tun` must exist.
+/// - **Windows: requires Administrator + Wintun installed .
 pub(crate) fn create_tun(params: &TunParams) -> io::Result<SyncDevice> {
     let mut builder = DeviceBuilder::new()
         .name(params.name.as_str())
@@ -47,6 +55,9 @@ pub(crate) fn ts_ms() -> u128 {
         .as_millis()
 }
 
+/// Parse a raw IP packet into a short, human-readable one-liner.
+///
+/// This is used for live logging while packets flow through the tunnel.
 pub(crate) fn format_packet(packet: &[u8]) -> String {
     let sliced = match SlicedPacket::from_ip(packet) {
         Ok(s) => s,
@@ -57,12 +68,22 @@ pub(crate) fn format_packet(packet: &[u8]) -> String {
         Some(NetSlice::Ipv4(ip4)) => {
             let h = ip4.header();
             let proto = format!("{:?}", h.protocol());
-            (h.source_addr().to_string(), h.destination_addr().to_string(), proto, format_transport(&sliced.transport))
+            (
+                h.source_addr().to_string(),
+                h.destination_addr().to_string(),
+                proto,
+                format_transport(&sliced.transport),
+            )
         }
         Some(NetSlice::Ipv6(ip6)) => {
             let h = ip6.header();
             let proto = format!("{:?}", h.next_header());
-            (h.source_addr().to_string(), h.destination_addr().to_string(), proto, format_transport(&sliced.transport))
+            (
+                h.source_addr().to_string(),
+                h.destination_addr().to_string(),
+                proto,
+                format_transport(&sliced.transport),
+            )
         }
         Some(NetSlice::Arp(_)) => return "ARP".to_string(),
         None => return format!("? len={}", packet.len()),
@@ -71,7 +92,14 @@ pub(crate) fn format_packet(packet: &[u8]) -> String {
     if ports.is_empty() {
         format!("{} -> {} {} len={}", src, dst, proto, packet.len())
     } else {
-        format!("{} -> {} {} {} len={}", src, dst, proto, ports, packet.len())
+        format!(
+            "{} -> {} {} {} len={}",
+            src,
+            dst,
+            proto,
+            ports,
+            packet.len()
+        )
     }
 }
 
@@ -96,7 +124,7 @@ struct Args {
 enum Mode {
     /// Client: reads from local TUN, sends packets to UDP server, writes replies back to TUN
     Client {
-        /// UDP server address, e.g. 203.0.113.10:9000
+        /// UDP server address
         #[arg(long)]
         server: std::net::SocketAddr,
 
@@ -108,7 +136,7 @@ enum Mode {
         #[arg(long, default_value = "10.0.0.2")]
         address: String,
 
-        /// IPv4 prefix length (CIDR), e.g. 24 for /24
+        /// IPv4 prefix length (CIDR)
         #[arg(long, default_value_t = 24)]
         prefix: u8,
 
@@ -135,7 +163,7 @@ enum Mode {
         #[arg(long, default_value = "10.0.0.1")]
         address: String,
 
-        /// IPv4 prefix length (CIDR), e.g. 24 for /24
+        /// IPv4 prefix length (CIDR)
         #[arg(long, default_value_t = 24)]
         prefix: u8,
 
@@ -143,7 +171,7 @@ enum Mode {
         #[arg(long)]
         mtu: Option<u16>,
 
-        /// WAN interface name for NAT setup (Linux), e.g. eth0
+        /// WAN interface name for NAT setup (Linux)
         #[arg(long)]
         nat_iface: Option<String>,
 
@@ -199,4 +227,3 @@ fn main() -> io::Result<()> {
         }),
     }
 }
-
