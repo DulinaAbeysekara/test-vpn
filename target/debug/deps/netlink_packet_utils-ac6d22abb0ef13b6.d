@@ -1,0 +1,10 @@
+/home/vpn/Desktop/ntz-proto-uni/target/debug/deps/netlink_packet_utils-ac6d22abb0ef13b6.d: /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/lib.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/macros.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/errors.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/parsers.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/traits.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/nla.rs
+
+/home/vpn/Desktop/ntz-proto-uni/target/debug/deps/libnetlink_packet_utils-ac6d22abb0ef13b6.rmeta: /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/lib.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/macros.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/errors.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/parsers.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/traits.rs /home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/nla.rs
+
+/home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/lib.rs:
+/home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/macros.rs:
+/home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/errors.rs:
+/home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/parsers.rs:
+/home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/traits.rs:
+/home/vpn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/netlink-packet-utils-0.5.2/src/nla.rs:

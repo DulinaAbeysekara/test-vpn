@@ -1,9 +1,10 @@
 [package]
 name = "ntz-proto"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-tun = { version = "0.6", features = ["async"] }
-tokio = { version = "1", features = ["full"] }
-tun-rs = "2.8.2"
+clap = { version = "4", features = ["derive"] }
+tun-rs = "2"
+etherparse = "0.19"
+socket2 = "0.5"
